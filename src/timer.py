@@ -1,20 +1,39 @@
 #!/usr/bin/python3
 
-import argparse
+import sys
 import socket
 import json
-
+import time
 
 IP = '127.0.0.1'
 PORT = 4223
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('duration', type=str, nargs='?')
-    parser.add_argument('title', type=str)
+    result = {
+        'title': None,
+        'duration': None,
+        'list': False,
+    }
+    args = sys.argv[1:]
+    if len(args) == 0:
+        print_usage()
+        sys.exit(0)
+    else:
+        if args[0] in ('-l', '--list'):
+            result['list'] = True
+        else:
+            if len(args) == 1:
+                result['title'] = args[0]
+            elif len(args) == 2:
+                result['duration'] = args[0]
+                result['title'] = args[1]
 
-    return parser.parse_args()
+    return result
+
+
+def print_usage():
+    print('USAGE: TODO')
 
 
 def send_message(message):
@@ -25,7 +44,7 @@ def send_message(message):
         response = json.loads(data.decode('utf-8'))
         if not response['success']:
             print(response['message'])
-
+        return response
 
 
 def parse_duration(duration):
@@ -41,24 +60,42 @@ def parse_duration(duration):
     return seconds
 
 
+def format_duration(duration):
+    duration = int(duration)
+    hours = duration // 3600
+    minutes = duration % 3600 // 60
+    seconds = duration % 60
+    if hours:
+        return '{:02}:{:02}:{:02}'.format(hours, minutes, seconds)
+    return '{:02}:{:02}'.format(minutes, seconds)
+
 
 def main():
     args = parse_arguments()
-    print(args)
-    if args.duration is not None:
-        duration = parse_duration(args.duration)
-        title = args.title
+    print('args: {}'.format(args))
+
+    if args['list']:
         message = {
-                'type': 'start',
-                'duration': int(duration),
-                'title': args.title
-            }
-        send_message(message)
-    if args.duration is None:
+            'type': 'list'
+        }
+        response = send_message(message)
+        if response['success']:
+            timers = response['timers']
+            if not timers:
+                print('no current timers')
+            else:
+                print('{:10}{:20}'.format('Title', 'Duration left'))
+                for timer in timers:
+                    duration_left = format_duration(timer['end_time'] - time.time())
+                    print('{:10}{:20}'.format(timer['title'], duration_left))
+    elif args['title'] is not None:
         message = {
-                'type': 'start',
-                'title': args.title
-                }
+            'type': 'start',
+            'title': args['title'],
+        }
+        if args['duration'] is not None:
+            duration = parse_duration(args['duration'])
+            message['duration'] = duration
         send_message(message)
 
 
