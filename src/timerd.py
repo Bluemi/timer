@@ -83,7 +83,7 @@ class Config:
         for preset in self.presets:
             if preset.title == title:
                 return preset.duration
-        raise NoDurationFoundException('Could not find config for "{}"'.format(title))
+        raise NoDurationFoundException('Could not find preset for "{}"'.format(title))
 
 
 class TickThread(threading.Thread):
