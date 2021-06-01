@@ -3,11 +3,15 @@
 
 import os
 import queue
+import sys
 import time
 import socket
 import json
 import threading
 from queue import Queue
+from pydub import AudioSegment
+from pydub.playback import play
+
 
 from plyer import notification
 from ruamel.yaml import YAML
@@ -50,11 +54,12 @@ class Config:
         def from_dict(d):
             return Config.Preset(title=d['title'], duration=d['duration'])
 
-    def __init__(self, config_path, presets=None):
+    def __init__(self, config_path, presets=None, audio_file_path=None):
         self.config_path = config_path
         if presets is None:
             presets = []
         self.presets = presets
+        self.audio_file_path = audio_file_path
 
     @staticmethod
     def load():
@@ -63,7 +68,7 @@ class Config:
                 with open(config_file, 'r') as conf_f:
                     config = yaml.load(conf_f)
                     presets = list(map(Config.Preset.from_dict, config['presets']))
-                    return Config(config_file, presets=presets)
+                    return Config(config_file, presets=presets, audio_file_path=config.get('audio_file_path'))
         return Config(CONFIG_FILES[0])
 
     def dump(self):
@@ -87,11 +92,12 @@ class Config:
 
 
 class TickThread(threading.Thread):
-    def __init__(self):
+    def __init__(self, audio_signal):
         super(TickThread, self).__init__()
         self.timers = []
         self.running = True
         self.timer_queue = Queue()
+        self.audio_signal = audio_signal
 
     def run(self):
         while self.running:
@@ -104,6 +110,7 @@ class TickThread(threading.Thread):
                 self.timers.append(timer)
 
             # check timers
+            play_sound = False
             now = time.time()
             for timer in self.timers:
                 if now >= timer.end_time:
@@ -111,6 +118,9 @@ class TickThread(threading.Thread):
                         title=timer.title,
                         timeout=3
                     )
+                    play_sound = True
+            if play_sound:
+                play(self.audio_signal)
 
             self.timers = list(filter(lambda t: now < t.end_time, self.timers))
             time.sleep(CHECK_INTERVAL)
@@ -139,12 +149,17 @@ def handle_message(message, tick_thread, config):
         print('got list message')
         timers = list(map(Timer.to_dict, tick_thread.timers))
         return {'success': True, 'message': 'List of timers', 'timers': timers}
+    elif message['type'] == 'quit':
+        print('got quit message')
+        return {'success': True, 'message': 'Quit Daemon', 'quit': True}
 
 
 def main():
     config = Config.load()
 
-    tick_thread = TickThread()
+    audio_signal = AudioSegment.from_wav(os.path.join(HOME_DIR, '.local', 'etc', 'timerd', 'complete.wav'))
+
+    tick_thread = TickThread(audio_signal)
     tick_thread.start()
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -157,6 +172,8 @@ def main():
                 response = handle_message(message, tick_thread, config)
                 if response is not None:
                     sock.sendto(json.dumps(response).encode('utf-8'), addr)
+                    if response.get('quit', False):
+                        break
             except NoDurationFoundException as e:
                 sock.sendto(json.dumps({'success': False, 'message': str(e)}).encode('utf-8'), addr)
 

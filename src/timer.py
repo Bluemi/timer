@@ -14,6 +14,7 @@ def parse_arguments():
         'title': None,
         'duration': None,
         'list': False,
+        'quit': False,
     }
     args = sys.argv[1:]
     if len(args) == 0:
@@ -22,6 +23,8 @@ def parse_arguments():
     else:
         if args[0] in ('-l', '--list'):
             result['list'] = True
+        elif args[0] in ('-q', '--quit'):
+            result['quit'] = True
         else:
             if len(args) == 1:
                 result['title'] = args[0]
@@ -74,9 +77,7 @@ def main():
     args = parse_arguments()
 
     if args['list']:
-        message = {
-            'type': 'list'
-        }
+        message = {'type': 'list'}
         response = send_message(message)
         if response['success']:
             timers = response['timers']
@@ -97,6 +98,9 @@ def main():
                         duration_left=duration_left,
                         title_space=title_space
                     ))
+    elif args['quit']:
+        message = {'type': 'quit'}
+        send_message(message)
     elif args['title'] is not None:
         message = {
             'type': 'start',
