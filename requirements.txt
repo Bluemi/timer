@@ -1,2 +1,3 @@
-plyer
-ruamel.yaml
+plyer==2.0.0
+ruamel.yaml==0.17.7
+pydub==0.25.1
