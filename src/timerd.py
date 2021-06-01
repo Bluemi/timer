@@ -119,7 +119,7 @@ class TickThread(threading.Thread):
                         timeout=3
                     )
                     play_sound = True
-            if play_sound:
+            if play_sound and self.audio_signal is not None:
                 play(self.audio_signal)
 
             self.timers = list(filter(lambda t: now < t.end_time, self.timers))
@@ -157,7 +157,9 @@ def handle_message(message, tick_thread, config):
 def main():
     config = Config.load()
 
-    audio_signal = AudioSegment.from_wav(os.path.join(HOME_DIR, '.local', 'etc', 'timerd', 'complete.wav'))
+    audio_signal = None
+    if config.audio_file_path is not None and os.path.isfile(config.audio_file_path):
+        audio_signal = AudioSegment.from_wav(config.audio_file_path)
 
     tick_thread = TickThread(audio_signal)
     tick_thread.start()
